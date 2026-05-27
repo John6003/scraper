@@ -3,6 +3,7 @@ import sys
 import csv
 import psycopg2
 import requests
+import zipfile
 from datetime import datetime
 from dotenv import load_dotenv
 
@@ -53,29 +54,46 @@ def run_archive():
     colnames = [desc[0] for desc in cursor.description]
     
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    filename = f"odds_archive_{timestamp}.csv"
+    csv_filename = f"odds_archive_{timestamp}.csv"
+    zip_filename = f"odds_archive_{timestamp}.zip"
     
-    print(f"Writing to {filename}...")
-    with open(filename, 'w', newline='', encoding='utf-8') as f:
+    print(f"Writing database rows to {csv_filename}...")
+    with open(csv_filename, 'w', newline='', encoding='utf-8') as f:
         writer = csv.writer(f)
         writer.writerow(colnames)
         writer.writerows(rows)
         
-    print("Sending to Telegram...")
+    print(f"Compressing to lossless ZIP: {zip_filename}...")
+    try:
+        with zipfile.ZipFile(zip_filename, 'w', zipfile.ZIP_DEFLATED) as zipf:
+            zipf.write(csv_filename, arcname=csv_filename)
+        print("Compression complete!")
+    except Exception as e:
+        print(f"Compression failed: {e}")
+        # Cleanup and abort to prevent data loss
+        if os.path.exists(csv_filename): os.remove(csv_filename)
+        return
+        
+    print("Sending ZIP archive to Telegram...")
     if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
         print("Missing Telegram credentials. Please set TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID.")
         print("Aborting delete to prevent data loss.")
-        os.remove(filename)
+        if os.path.exists(csv_filename): os.remove(csv_filename)
+        if os.path.exists(zip_filename): os.remove(zip_filename)
         return
         
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendDocument"
-    with open(filename, 'rb') as f:
-        files = {'document': f}
-        data = {'chat_id': TELEGRAM_CHAT_ID, 'caption': f"Automated Archive: {len(rows)} rows from odds_snapshots."}
-        response = requests.post(url, data=data, files=files)
+    try:
+        with open(zip_filename, 'rb') as f:
+            files = {'document': f}
+            data = {'chat_id': TELEGRAM_CHAT_ID, 'caption': f"Automated Archive: {len(rows)} rows from odds_snapshots (Compressed ZIP)."}
+            response = requests.post(url, data=data, files=files)
+    except Exception as e:
+        print(f"Network error sending document to Telegram: {e}")
+        response = None
         
-    if response.status_code == 200:
-        print("Successfully sent to Telegram. Deleting from database...")
+    if response and response.status_code == 200:
+        print("Successfully sent to Telegram. Deleting records from database...")
         # Get the IDs of the records to delete
         snapshot_ids = [r[0] for r in rows] # Assuming snapshot_id is the first column
         # Delete in chunks to avoid locking too much
@@ -90,11 +108,15 @@ def run_archive():
             
         print("Archiving complete!")
     else:
-        print(f"Failed to send to Telegram (HTTP {response.status_code}): {response.text}")
+        err_msg = response.text if response else "No response"
+        print(f"Failed to send to Telegram: {err_msg}")
         print("Aborting delete to prevent data loss.")
         
-    if os.path.exists(filename):
-        os.remove(filename)
+    # Cleanup local files
+    if os.path.exists(csv_filename):
+        os.remove(csv_filename)
+    if os.path.exists(zip_filename):
+        os.remove(zip_filename)
         
     cursor.close()
     conn.close()
