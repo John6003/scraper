@@ -1,0 +1,4 @@
+requests
+supabase
+python-dotenv
+psycopg2-binary

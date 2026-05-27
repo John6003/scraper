@@ -1,0 +1,33 @@
+name: Tennis Alpha Result Backfiller
+
+on:
+  schedule:
+    # Runs every 2 hours (at minute 5 past the hour to avoid clashing with the poller)
+    - cron: '5 */2 * * *'
+  workflow_dispatch:
+
+jobs:
+  backfill-results:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+
+    - name: Install Dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+
+    - name: Run Result Backfiller
+      env:
+        ODDS_API_KEYS: ${{ secrets.ODDS_API_KEYS }}
+        SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+        SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+      run: |
+        python src/data/flashscore_live_sync.py
