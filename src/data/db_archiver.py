@@ -9,10 +9,10 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# Build postgres connection string from Supabase credentials if raw pg url is not provided
 CONN_STR = os.getenv("SUPABASE_PG_URL") 
 if not CONN_STR:
-    CONN_STR = "postgresql://postgres:vaisakh670595@db.ctkdfxcsjsuzthjfjqre.supabase.co:5432/postgres"
+    print("CRITICAL ERROR: SUPABASE_PG_URL environment variable is missing!")
+    sys.exit(1)
 
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
@@ -43,8 +43,15 @@ def run_archive():
         
     print(f"Size threshold exceeded! Archiving older data...")
     
-    print("Fetching oldest 500,000 records...")
-    cursor.execute("SELECT * FROM odds_snapshots ORDER BY scraped_at ASC LIMIT 500000;")
+    print("Fetching oldest 500,000 completed records...")
+    cursor.execute("""
+        SELECT os.* 
+        FROM odds_snapshots os
+        JOIN match_registry mr ON os.match_id = mr.api_event_id
+        WHERE mr.winner_name IS NOT NULL
+        ORDER BY os.scraped_at ASC 
+        LIMIT 500000;
+    """)
     rows = cursor.fetchall()
     
     if not rows:
