@@ -30,4 +30,11 @@ jobs:
         TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         SUPABASE_PG_URL: ${{ secrets.SUPABASE_PG_URL }}
       run: |
-        python src/data/db_archiver.py
+        python src/data/db_archiver.py > archiver.log 2>&1 || (cat archiver.log && exit 1)
+
+    - name: Upload Debug Log
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: archiver-execution-log
+        path: archiver.log
