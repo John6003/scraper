@@ -2,8 +2,8 @@ name: Keepalive Workflow
 
 on:
   schedule:
-    - cron: "0 0 1 */2 *" # Runs every 2 months
-  workflow_dispatch: # Allows manual trigger
+    - cron: "0 0 1 * *" # Runs on the 1st of EVERY month (~30 days)
+  workflow_dispatch:
 
 jobs:
   keepalive-job:
