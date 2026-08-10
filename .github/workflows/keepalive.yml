@@ -1,0 +1,16 @@
+name: Keepalive Workflow
+
+on:
+  schedule:
+    - cron: "0 0 1 */2 *" # Runs on the 1st day of every 2nd month
+  workflow_dispatch: # Enables manual trigger from the Actions tab
+
+jobs:
+  keepalive-job:
+    name: Keepalive Workflow
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: gautamkrishnar/keepalive-workflow@v2
